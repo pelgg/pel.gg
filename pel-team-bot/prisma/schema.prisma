@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One record per Discord server (team)
+model Guild {
+  id              String   @id              // Discord Guild ID
+  teamName        String?
+  captainUserId   String?                   // Discord user ID of the captain
+  linkedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Channel configuration
+  newsChannelId          String?
+  fixturesChannelId      String?            // #fixtures-and-results
+  lineupChannelId        String?
+  availabilityChannelId  String?
+  rosterChannelId        String?            // #roster
+  scheduleChannelId      String?
+
+  // Relations
+  roster          RosterPlayer[]
+  availabilityChecks AvailabilityCheck[]
+  fixtures        Fixture[]
+  newsPosts       NewsPost[]
+  lineups         Lineup[]
+
+  @@map("guilds")
+}
+
+model RosterPlayer {
+  id            String   @id @default(cuid())
+  guildId       String
+  discordId     String                        // Discord user ID
+  displayName   String
+  position      String                        // GK, CB, LB, RB, CDM, CM, CAM, LW, RW, ST, etc.
+  country       String                        // Country of origin (e.g. "Brazil", "Sweden")
+  countryCode   String?                       // Optional ISO code for flag emoji
+  joinedAt      DateTime @default(now())
+  isActive      Boolean  @default(true)
+
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, discordId])
+  @@map("roster_players")
+}
+
+model AvailabilityCheck {
+  id            String   @id @default(cuid())
+  guildId       String
+  messageId     String?                       // Discord message ID of the check
+  channelId     String
+  title         String
+  description   String?
+  eventDate     DateTime?
+  createdBy     String                        // Discord user ID
+  createdAt     DateTime @default(now())
+  closesAt      DateTime?
+  isOpen        Boolean  @default(true)
+
+  responses     AvailabilityResponse[]
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("availability_checks")
+}
+
+model AvailabilityResponse {
+  id            String   @id @default(cuid())
+  checkId       String
+  discordId     String
+  status        String                        // AVAILABLE | MAYBE | UNAVAILABLE
+  respondedAt   DateTime @default(now())
+
+  check         AvailabilityCheck @relation(fields: [checkId], references: [id], onDelete: Cascade)
+
+  @@unique([checkId, discordId])
+  @@map("availability_responses")
+}
+
+model Fixture {
+  id            String   @id @default(cuid())
+  guildId       String
+  opponent      String
+  competition   String?
+  homeAway      String?                       // HOME | AWAY | NEUTRAL
+  kickoff       DateTime
+  result        String?                       // e.g. "3-1" or null if not played
+  notes         String?
+  messageId     String?
+  createdAt     DateTime @default(now())
+
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("fixtures")
+}
+
+model NewsPost {
+  id            String   @id @default(cuid())
+  guildId       String
+  title         String
+  content       String
+  imageUrl      String?
+  messageId     String?
+  postedBy      String
+  createdAt     DateTime @default(now())
+
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("news_posts")
+}
+
+model Lineup {
+  id            String   @id @default(cuid())
+  guildId       String
+  title         String                        // e.g. "vs Team X - League Match"
+  formation     String?                       // e.g. "4-3-3"
+  players       Json                          // Array of {position, name, discordId?}
+  messageId     String?
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("lineups")
+}
